@@ -1,0 +1,9 @@
+while ($true) {
+    $url = "http://127.0.0.1"  # Cserélje le az URL-t a lekérni kívánt weboldal címére! Ne feledkezzen meg a port megadásáról sem! 
+    $response = Invoke-WebRequest -Uri $url -UseBasicParsing
+    
+    # Üzenetet írunk ki a lekérésről
+    Write-Host "Kérés elküldve"
+    
+    Start-Sleep -Seconds 5 # Várunk 5 másodpercet a következő lekérésig
+}
