@@ -1,0 +1,556 @@
+Jegyzet:
+- TESZT-PC pingel (ping 193.65.40.5). A web time out.
+
+---------------------------------------------------------------------------------------------
+192.168.0.0/24 
+
+
+
+-------------------------------------------------------
+TataLAN			 192.168.0.0   255.255.255.192
+-------------------------------------------------------
+PaksLAN1		 192.168.0.64  255.255.255.192
+-------------------------------------------------------
+PaksLAN2		 192.168.0.128 255.255.255.192
+-------------------------------------------------------
+-------------------------------------------------------
+Szarvas-RT és TataRT 	 192.168.0.192 255.255.255.252  
+-------------------------------------------------------
+TataRT és Paks-RT	 192.168.0.196 255.255.255.252 
+-------------------------------------------------------
+Paks-RT és SzarvasRT	 192.168.0.200 255.255.255.252 
+-------------------------------------------------------
+SzarvasRT és ISP	 193.65.40.1 255.255.255.240 
+-------------------------------------------------------
+
+
+
+
+-------------------------------------------------------------------------
+Servers:
+
+WEB-SRV		 192.168.0.10 255.255.255.192
+-------------------------------------------------------
+TFTP 		 192.168.0.20 255.255.255.192
+
+
+-------------------------------------------------------------------------
+Feladatok:
+- RIP v2 (Szarvas - ISP hálózat nincs hírdetve) + no auto-summary + Szarvas ról isp fele alap út és annak hírdetése + passzív interface-ek beállítása
+- NAT szarvason (WEB-SRV 193.65.40.5 címen legyen elérhető)
+- PAT szarvason (Belsőből ISP felé fordít. 193.65.40.6 193.65.40.7 /28 tartományra fordít) 
+
+
+
+
+
+
+FIGYELJ!
+MINDEN ROUTEREN NO IP domain-lookup
+Soros0/0/1 az 1.
+Router az 1.
+WEB-SRV 10. cím
+TFTP 20. cím
+DNS 4.4.4.4
+PAKS-WIFI Lan: 192.168.55.1/24     + 55.55-től oszt címeket 85 kliensnek + dns 4.4.4.4 + SSID PAKSWIFI / PAKSKEY1   +  MAC szűrés
+TATA-SW utolsó cím + gateway
+SZARVAS-RT konzol jelszava szarvas_konzol + vty jelszava szarvas_telnet + secret pass szarvas_pass
+SZARVAS-RT MOTD "SZARVAS router"
+Felesleges portok lekapcsolása (TATA-SW) + 1 MAC címet fogadjon el + shutdown
+PAKS-RT 2 DHCP első 6-6 cím exclude + router cím + dns 4.4.4.4
+SZARVAS-RT-t menteni TFTP-re
+SZARVAS-RT kiadni: logging synchronous (line-on)
+
+
+----------------------------------------------------------------
+SZARVAS-RT
+
+	enable
+	clock set 19:00:00 12 jan 2024
+	conf t
+	hostname SZARVAS-RT
+	banner motd #SZARVAS router!#
+	login block-for 100 attempts 15 within 180
+	logging on
+	login on-failure log
+	login on-success log
+	logging console
+	logging buffered
+	service timestamps log datetime msec
+	service timestamps debug datetime msec
+	no ip domain-lookup
+	line vty 0 15
+	password szarvas_telnet
+	login
+	exec-timeout 5
+	exit
+	line console 0
+	password szarvas_konzol
+	login
+	exec-timeout 5
+	logging synchronous
+	exit
+	line aux 0
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	enable secret szarvas_pass
+	service password-encryption
+
+ 
+	interface s0/0/0
+	ip address 192.168.0.202 255.255.255.252
+	no shutdown
+	exit
+
+
+	interface s0/0/1
+	ip nat inside
+	ip address 192.168.0.193 255.255.255.252
+	no shutdown
+	exit
+
+
+	interface s0/1/1
+	ip nat outside
+	ip address 193.65.40.1 255.255.255.240
+	no shutdown
+	exit
+
+
+	ip route 0.0.0.0 0.0.0.0 s0/1/1
+
+	router rip
+	version 2
+	no auto-summary
+	default-information originate
+	network 192.168.0.200
+	network 192.168.0.204
+	network 192.168.0.196
+	passive-interface s0/1/1
+	exit
+
+	ip nat inside source static 192.168.0.10 193.65.40.5
+
+	ip nat pool Po1 193.65.40.6 193.65.40.7 netmask 255.255.255.240
+	access-list 1 permit 192.168.0.0 0.0.0.255
+	ip nat inside source list 1 pool Po1 over
+
+	do wr
+
+
+
+
+----------------------------------------------------------------
+TATA-RT
+
+	enable
+	clock set 19:00:00 12 jan 2024
+	conf t
+	hostname TATA-RT
+	banner motd #Belepes csak gumibogyoszorp at adasaval!#
+	login block-for 100 attempts 15 within 180
+	logging on
+	login on-failure log
+	login on-success log
+	logging console
+	logging buffered
+	service timestamps log datetime msec
+	service timestamps debug datetime msec
+	no ip domain-lookup
+	line vty 0 15
+	password tata_telnet
+	login
+	exec-timeout 5
+	exit
+	line console 0
+	password tata_konzol
+	login
+	exec-timeout 5
+	logging synchronous
+	exit
+	line aux 0
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	enable secret tata_pass
+	service password-encryption
+
+ 
+	interface s0/0/0
+	ip address 192.168.0.192 255.255.255.252 
+	no shutdown
+	exit
+
+
+	interface s0/0/1
+	ip address 192.168.0.197 255.255.255.252 
+	no shutdown
+	exit
+
+
+	interface g0/1
+	ip address 192.168.0.1 255.255.255.192
+	no shutdown
+	exit
+
+	router rip
+	version 2
+	no auto-summary
+	network 192.168.0.0
+	passive-interface g0/1
+
+
+
+	do wr
+
+
+
+
+
+
+----------------------------------------------------------------
+PAKS-RT
+
+	enable
+	clock set 19:00:00 12 jan 2024
+	conf t
+	hostname PAKS-RT
+	banner motd #Belepes csak gumibogyoszorp at adasaval!#
+	login block-for 100 attempts 15 within 180
+	logging on
+	login on-failure log
+	login on-success log
+	logging console
+	logging buffered
+	service timestamps log datetime msec
+	service timestamps debug datetime msec
+	no ip domain-lookup
+	line vty 0 15
+	password paks_telnet
+	login
+	exec-timeout 5
+	exit
+	line console 0
+	password paks_konzol
+	login
+	exec-timeout 5
+	logging synchronous
+	exit
+	line aux 0
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	enable secret paks_pass
+	service password-encryption
+
+ 
+	interface s0/0/0
+	ip address 192.168.0.198 255.255.255.252 
+	no shutdown
+	exit
+
+
+	interface s0/0/1
+	ip address 192.168.0.201 255.255.255.252
+	no shutdown
+	exit
+
+
+	interface g0/0
+	ip address 192.168.0.129 255.255.255.192
+	no shutdown
+	exit
+
+	interface g0/1
+	ip address 192.168.0.65  255.255.255.192
+	no shutdown
+	exit
+
+	router rip
+	version 2
+	no auto-summary
+	network 192.168.0.64
+	network 192.168.0.128
+	passive-interface g0/1
+	passive-interface g0/0
+
+
+	ip dhcp pool Lan1
+	network 192.168.0.64 255.255.255.192
+	default-router 192.168.0.65
+	dns 4.4.4.4
+	exit
+	ip dhcp excluded-address 192.168.0.65 192.168.0.70
+
+	ip dhcp pool Lan2
+	network 192.168.0.128 255.255.255.192
+	default-router 192.168.0.129 
+	dns 4.4.4.4
+	exit
+	ip dhcp excluded-address 192.168.0.129 192.168.0.134
+
+	do wr
+
+
+ 
+
+
+
+----------------------------------------------------------------
+TATA-SW
+
+	
+	enable
+	clock set 19:00:00 12 jan 2024
+	conf t
+	hostname TATA-SW
+	banner motd #Belepes csak meghatalmazassal!#
+	logging console
+	service timestamps log datetime msec
+	service timestamps debug datetime msec
+	line vty 0 15
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	line console 0
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	enable secret cisco
+	service password-encryption 
+	
+	ip default-gateway 192.168.0.1
+
+	interface vlan 1
+	ip address 192.168.0.62 255.255.255.192
+	no shutdown
+	exit
+
+
+	int range f0/1-2, g0/1
+	switchport mode access
+	switchport port-security
+	switchport port-security maximum 1
+	switchport port-security mac-address sticky
+	switchport port-security violation shutdown 
+	exit
+
+	int range f0/3-24, g0/2
+	switchport mode access
+	switchport access vlan 99
+	switchport port-security
+	switchport port-security violation shutdown
+	shutdown
+	exit
+
+	do wr
+
+
+
+
+
+----------------------------------------------------------------
+PAKS-SW1
+
+
+	enable
+	clock set 19:00:00 12 jan 2024
+	conf t
+	hostname PAKS-SW1
+	banner motd #Belepes csak meghatalmazassal!#
+	logging console
+	service timestamps log datetime msec
+	service timestamps debug datetime msec
+	line vty 0 15
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	line console 0
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	enable secret cisco
+	service password-encryption 
+
+
+	int range f0/1, g0/1
+	switchport mode access
+	switchport port-security
+	switchport port-security maximum 1
+	switchport port-security mac-address sticky
+	switchport port-security violation shutdown 
+	exit
+
+	int range f0/2-24, g0/2
+	switchport mode access
+	switchport access vlan 99
+	switchport port-security
+	switchport port-security violation shutdown
+	shutdown
+	exit
+
+	do wr
+
+
+
+
+----------------------------------------------------------------
+PAKS-SW2
+
+	
+	enable
+	clock set 19:00:00 12 jan 2024
+	conf t
+	hostname PAKS-SW2
+	banner motd #Belepes csak meghatalmazassal!#
+	logging console
+	service timestamps log datetime msec
+	service timestamps debug datetime msec
+	line vty 0 15
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	line console 0
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	enable secret cisco
+	service password-encryption 
+
+
+	int range g0/1-2
+	switchport mode access
+	switchport port-security
+	switchport port-security maximum 1
+	switchport port-security mac-address sticky
+	switchport port-security violation shutdown 
+	exit
+
+	int range f0/1-24
+	switchport mode access
+	switchport access vlan 99
+	switchport port-security
+	switchport port-security violation shutdown
+	shutdown
+	exit
+
+	do wr
+
+
+
+----------------------------------------------------------------
+
+ISP:
+
+	enable
+	clock set 19:00:00 12 jan 2024
+	conf t
+	hostname ISP
+	banner motd #ISP!#
+	login block-for 100 attempts 15 within 180
+	logging on
+	login on-failure log
+	login on-success log
+	logging console
+	logging buffered
+	service timestamps log datetime msec
+	service timestamps debug datetime msec
+	no ip domain-lookup
+	line vty 0 15
+	password isp_telnet
+	login
+	exec-timeout 5
+	exit
+	line console 0
+	password isp_konzol
+	login
+	exec-timeout 5
+	logging synchronous
+	exit
+	line aux 0
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	enable secret isp_pass
+	service password-encryption
+
+ 
+	interface s0/0/0
+	ip address 193.65.40.2 255.255.255.240
+	no shutdown
+	exit
+
+
+	interface g0/1
+	ip address 4.4.4.1 255.255.255.0
+	no shutdown
+	exit
+
+
+	ip route 0.0.0.0 0.0.0.0 s0/0/0
+
+-----------------------------------------------------
+
+ISP-SW:
+	
+	enable
+	clock set 19:00:00 12 jan 2024
+	conf t
+	hostname ISP-SW
+	banner motd #A szolgaltato plusz koltseget szamithat fel a megtekintesert!!!#
+	logging console
+	service timestamps log datetime msec
+	service timestamps debug datetime msec
+	line vty 0 15
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	line console 0
+	password cisco
+	login
+	exec-timeout 5
+	exit
+	enable secret cisco
+	service password-encryption 
+
+
+	int range f0/1-2, g0/1
+	switchport mode access
+	switchport port-security
+	switchport port-security maximum 1
+	switchport port-security mac-address sticky
+	switchport port-security violation shutdown 
+	exit
+
+	int range f0/3-24, g0/2
+	switchport mode access
+	switchport access vlan 99
+	switchport port-security
+	switchport port-security violation shutdown
+	shutdown
+	exit
+
+	do wr
+
+
+
+
+
+
+
+
+
+
+
